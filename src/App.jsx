@@ -1,41 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+Ôªøimport React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  Building,
-  Building2,
-  Car,
-  Home,
-  Landmark,
-  ShoppingCart,
-  User,
-  Users,
-} from "lucide-react";
+import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 
-const RATE = 5930;
-
-const MILESTONES = [
-  { id: 1, seconds: 2, label: "Placeholder 1", amount: "$11,860", icon: "ShoppingCart" },
-  { id: 2, seconds: 5, label: "Placeholder 2", amount: "$29,650", icon: "Car" },
-  { id: 3, seconds: 9, label: "Placeholder 3", amount: "$53,370", icon: "User" },
-  { id: 4, seconds: 13, label: "Placeholder 4", amount: "$77,090", icon: "User" },
-  { id: 5, seconds: 18, label: "Placeholder 5", amount: "$106,740", icon: "Home" },
-  { id: 6, seconds: 23, label: "Placeholder 6", amount: "$136,390", icon: "Home" },
-  { id: 7, seconds: 29, label: "Placeholder 7", amount: "$172,070", icon: "Building" },
-  { id: 8, seconds: 35, label: "Placeholder 8", amount: "$207,550", icon: "Building" },
-  { id: 9, seconds: 47, label: "Placeholder 9", amount: "$278,900", icon: "Building2" },
-  { id: 10, seconds: 57, label: "Placeholder 10", amount: "$338,010", icon: "Landmark" },
-];
-
-const ICONS = {
-  ShoppingCart,
-  Car,
-  User,
-  Users,
-  Home,
-  Building,
-  Building2,
-  Landmark,
-};
+const RATE = RATE_USD_PER_SECOND;
+const CARD_WIDTH = 360;
+const CARD_HEIGHT = 112;
+const CARD_GAP = 8;
 
 const DIGIT_SVGS = {
   "0": { viewBox: "0 0 1040 1373", inner: `<path fill-rule="evenodd" clip-rule="evenodd" d="M166.364 1372.08V1288.94H83.1364V1205.77H0V166.311H83.1364V83.1466H166.364V0.000854492H873.161V83.1466H956.299V166.311H1039.53V1205.77H956.299V1288.94H873.161V1372.08H166.364Z" fill="var(--accent)"/>
@@ -71,6 +41,9 @@ const STYLES = `
   --card-bg: #FFFFFF;
   --card-text: #000000;
   --card-muted: rgba(0,0,0,0.4);
+  --card-w: ${CARD_WIDTH}px;
+  --card-h: ${CARD_HEIGHT}px;
+  --card-gap: ${CARD_GAP}px;
   --digit-w: 8vw;
   --digit-h: 11vw;
   --symbol-w: 6vw;
@@ -178,16 +151,16 @@ body {
 
 .milestone-stack {
   position: relative;
-  width: 360px;
-  height: 260px;
+  width: var(--card-w);
+  height: calc((var(--card-h) * 3) + (var(--card-gap) * 2));
 }
 
 .milestone-card {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 360px;
-  height: 88px;
+  width: var(--card-w);
+  min-height: var(--card-h);
   background: var(--card-bg);
   color: var(--card-text);
   border-radius: 0;
@@ -196,27 +169,38 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .milestone-line {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 0.65rem;
+  line-height: 1.35;
   color: var(--card-muted);
 }
 
-.milestone-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--card-muted);
+.milestone-line::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--card-muted);
+  flex: 0 0 auto;
 }
 
 .milestone-amount {
   font-size: 1.1rem;
   font-weight: 600;
+  line-height: 1.1;
   color: var(--card-text);
+}
+
+.milestone-amount-sub {
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--card-muted);
 }
 
 .source {
@@ -234,6 +218,7 @@ body {
     --digit-h: 16vw;
     --symbol-w: 8vw;
     --comma-w: 4vw;
+    --card-w: 90vw;
   }
 
   .milestones {
@@ -243,14 +228,7 @@ body {
     bottom: 24px;
   }
 
-  .milestone-stack {
-    width: 90vw;
   }
-
-  .milestone-card {
-    width: 90vw;
-  }
-}
 `;
 
 const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
@@ -342,11 +320,11 @@ const Counter = ({ value }) => {
 };
 
 const MilestoneCard = ({ card, index }) => {
-  const Icon = ICONS[card.icon] || Landmark;
+  const stackOffset = CARD_HEIGHT + CARD_GAP;
   const positions = [
     { y: 0, scale: 1, opacity: 1 },
-    { y: -96, scale: 0.97, opacity: 0.5 },
-    { y: -184, scale: 0.94, opacity: 0.2 },
+    { y: -stackOffset, scale: 0.97, opacity: 0.55 },
+    { y: -(stackOffset * 2), scale: 0.94, opacity: 0.25 },
   ];
   const target = positions[Math.min(index, 2)];
 
@@ -359,12 +337,12 @@ const MilestoneCard = ({ card, index }) => {
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div className="milestone-line">
-        <Icon className="milestone-icon" />
         <span>
-          {card.seconds} ÒÂÍ. ∑ {card.label}
+          {card.secondsLabel} —Å–µ–∫. ¬∑ {card.label}
         </span>
       </div>
-      <div className="milestone-amount">{card.amount}</div>
+      <div className="milestone-amount">{`$${card.usd}`}</div>
+      <div className="milestone-amount-sub">‚âà {card.rub} ‚ÇΩ</div>
     </motion.div>
   );
 };
@@ -392,8 +370,8 @@ const App = () => {
 
     const tick = (now) => {
       const elapsedMs = now - start;
-      const elapsedSeconds = Math.floor(elapsedMs / 1000);
-      const amount = Math.floor((elapsedMs / 1000) * RATE);
+      const elapsedSeconds = elapsedMs / 1000;
+      const amount = Math.floor(elapsedSeconds * RATE);
 
       setDollars(amount);
 
@@ -425,8 +403,8 @@ const App = () => {
     <div className="app">
       <style>{STYLES}</style>
       <div className="top-text">
-        <div>»ÀŒÕ Ã¿—  «¿–¿¡Œ“¿À</div>
-        <div>— ÃŒÃ≈Õ“¿  ¿  ¬€ Œ“ –€À» ›“” —“–¿Õ»÷”</div>
+        <div>–ò–õ–û–ù –ú–ê–°–ö –ó–ê–†–ê–ë–û–¢–ê–õ</div>
+        <div>–° –ú–û–ú–ï–ù–¢–ê –ö–ê–ö –í–´ –û–¢–ö–†–´–õ–ò –≠–¢–£ –°–¢–†–ê–ù–ò–¶–£</div>
       </div>
       <div className="counter-wrap">
         <Counter value={dollars} />
@@ -434,12 +412,18 @@ const App = () => {
       <div className="milestones">
         <MilestoneStack cards={visibleCards} />
       </div>
-      <div className="source">»ÒÚÓ˜ÌËÍ: ÓÒÚ ÒÓÒÚÓˇÌËˇ $187 ÏÎ‰ ‚ 2025 „. Forbes, 2026</div>
+      <div className="source">–ò—Å—Ç–æ—á–Ω–∏–∫: —Ä–æ—Å—Ç —Å–æ—Å—Ç–æ—è–Ω–∏—è $187 –º–ª—Ä–¥ –≤ 2025 –≥. Forbes, 2026</div>
     </div>
   );
 };
 
 export default App;
+
+
+
+
+
+
 
 
 
