@@ -1,4 +1,4 @@
-ï»¿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Building,
@@ -135,12 +135,15 @@ body {
   overflow: hidden;
   display: block;
   flex: 0 0 var(--digit-w);
+  position: relative;
 }
 
 .digit-svg {
   width: 100%;
   height: 100%;
   display: block;
+  position: absolute;
+  inset: 0;
 }
 
 .symbol-svg {
@@ -250,21 +253,24 @@ body {
 }
 `;
 
-const SvgDigit = ({ digit }) => {
+const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
   const data = DIGIT_SVGS[digit] || DIGIT_SVGS["0"];
+  const resolvedEnter = enterDuration ?? 0.22;
+  const resolvedExit = exitDuration ?? resolvedEnter;
+  const resolvedEnterFrom = enterFrom ?? 0;
 
   return (
     <div className="digit-cell" aria-hidden="true">
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} mode="sync">
         <motion.svg
           key={digit}
           className="digit-svg"
           viewBox={data.viewBox}
           preserveAspectRatio="xMidYMid meet"
-          initial={{ y: "100%", opacity: 0 }}
-          animate={{ y: "0%", opacity: 1 }}
-          exit={{ y: "-100%", opacity: 0 }}
-          transition={{ duration: 0.12 }}
+          initial={{ opacity: resolvedEnterFrom }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: resolvedExit, ease: "linear" } }}
+          transition={{ duration: resolvedEnter, ease: "easeOut" }}
         >
           <g dangerouslySetInnerHTML={{ __html: data.inner }} />
         </motion.svg>
@@ -281,15 +287,48 @@ const SvgSymbol = ({ char, type }) => (
   </svg>
 );
 
+const getFadeProfile = (placeFromRight) => {
+  const fast = placeFromRight <= 2;
+
+  const enterMin = 0.05;
+  const enterStep = 0.03;
+  const enterMax = 0.22;
+  const enterBase = Math.min(enterMax, enterMin + placeFromRight * enterStep);
+
+  const exitMin = 0.01;
+  const exitStep = 0.02;
+  const exitMax = 0.18;
+  const exitBase = Math.min(exitMax, exitMin + placeFromRight * exitStep);
+
+  const enter = fast ? 0.02 : enterBase;
+  const exit = fast ? Math.min(exitBase, 0.02) : exitBase;
+  const enterFrom = fast ? 1 : 0;
+
+  return { enter, exit, enterFrom };
+};
+
 const Counter = ({ value }) => {
   const display = `$${value.toLocaleString("en-US")}`;
   const chars = display.split("");
+  const digitCount = display.replace(/\D/g, "").length;
+  let digitIndex = 0;
 
   return (
     <div className="counter" aria-label={display}>
       {chars.map((char, index) => {
         if (/\d/.test(char)) {
-          return <SvgDigit key={`digit-${index}`} digit={char} />;
+          const placeFromRight = digitCount - 1 - digitIndex;
+          const { enter, exit, enterFrom } = getFadeProfile(placeFromRight);
+          digitIndex += 1;
+          return (
+            <SvgDigit
+              key={`digit-${index}`}
+              digit={char}
+              enterDuration={enter}
+              exitDuration={exit}
+              enterFrom={enterFrom}
+            />
+          );
         }
 
         if (char === "$") {
@@ -322,7 +361,7 @@ const MilestoneCard = ({ card, index }) => {
       <div className="milestone-line">
         <Icon className="milestone-icon" />
         <span>
-          {card.seconds} ÑĞµĞº. Â· {card.label}
+          {card.seconds} ñåê. · {card.label}
         </span>
       </div>
       <div className="milestone-amount">{card.amount}</div>
@@ -386,8 +425,8 @@ const App = () => {
     <div className="app">
       <style>{STYLES}</style>
       <div className="top-text">
-        <div>Ğ˜Ğ›ĞĞ ĞœĞĞ¡Ğš Ğ—ĞĞ ĞĞ‘ĞĞ¢ĞĞ›</div>
-        <div>Ğ¡ ĞœĞĞœĞ•ĞĞ¢Ğ ĞšĞĞš Ğ’Ğ« ĞĞ¢ĞšĞ Ğ«Ğ›Ğ˜ Ğ­Ğ¢Ğ£ Ğ¡Ğ¢Ğ ĞĞĞ˜Ğ¦Ğ£</div>
+        <div>ÈËÎÍ ÌÀÑÊ ÇÀĞÀÁÎÒÀË</div>
+        <div>Ñ ÌÎÌÅÍÒÀ ÊÀÊ ÂÛ ÎÒÊĞÛËÈ İÒÓ ÑÒĞÀÍÈÖÓ</div>
       </div>
       <div className="counter-wrap">
         <Counter value={dollars} />
@@ -395,10 +434,17 @@ const App = () => {
       <div className="milestones">
         <MilestoneStack cards={visibleCards} />
       </div>
-      <div className="source">Ğ˜ÑÑ‚Ğ¾Ñ‡Ğ½Ğ¸Ğº: Ñ€Ğ¾ÑÑ‚ ÑĞ¾ÑÑ‚Ğ¾ÑĞ½Ğ¸Ñ $187 Ğ¼Ğ»Ñ€Ğ´ Ğ² 2025 Ğ³. Forbes, 2026</div>
+      <div className="source">Èñòî÷íèê: ğîñò ñîñòîÿíèÿ $187 ìëğä â 2025 ã. Forbes, 2026</div>
     </div>
   );
 };
 
 export default App;
+
+
+
+
+
+
+
 
