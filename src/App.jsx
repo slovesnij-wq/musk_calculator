@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
+import dollarIcon from "./assets/dollar.svg";
 
 const RATE = RATE_USD_PER_SECOND;
 const CARD_WIDTH = 360;
@@ -48,7 +49,7 @@ const STYLES = `
   --card-gap: ${CARD_GAP}px;
   --digit-w: 8vw;
   --digit-h: 11vw;
-  --symbol-w: 6vw;
+  --symbol-w: var(--digit-w);
   --comma-w: 3vw;
 }
 
@@ -131,6 +132,9 @@ body {
 .symbol-svg.dollar {
   width: var(--symbol-w);
   flex: 0 0 var(--symbol-w);
+  object-fit: cover;
+  transform: scale(1.60);
+  transform-origin: center;
 }
 
 .symbol-svg.comma {
@@ -220,7 +224,7 @@ body {
   :root {
     --digit-w: 12vw;
     --digit-h: 16vw;
-    --symbol-w: 8vw;
+    --symbol-w: var(--digit-w);
     --comma-w: 4vw;
     --card-w: 90vw;
   }
@@ -261,13 +265,26 @@ const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
   );
 };
 
-const SvgSymbol = ({ char, type }) => (
-  <svg className={`symbol-svg ${type}`} viewBox="0 0 60 80" aria-hidden="true">
-    <text className="symbol-text" x="30" y="65" textAnchor="middle">
-      {char}
-    </text>
-  </svg>
-);
+const SvgSymbol = ({ char, type }) => {
+  if (char === "$") {
+    return (
+      <img
+        className={"symbol-svg " + type}
+        src={dollarIcon}
+        alt=""
+        aria-hidden="true"
+      />
+    );
+  }
+
+  return (
+    <svg className={"symbol-svg " + type} viewBox="0 0 60 80" aria-hidden="true">
+      <text className="symbol-text" x="30" y="65" textAnchor="middle">
+        {char}
+      </text>
+    </svg>
+  );
+};
 
 const getFadeProfile = (placeFromRight) => {
   const fast = placeFromRight <= 2;
