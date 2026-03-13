@@ -4,4 +4,6 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Allow dependency pre-bundling so CJS deps like React expose named exports.
+  optimizeDeps: { include: ['react', 'react-dom', 'framer-motion'] },
 })
