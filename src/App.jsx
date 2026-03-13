@@ -9,6 +9,17 @@ const CARD_HEIGHT = 112;
 const CARD_GAP = 8;
 const CARD_RISE_SPEED = 60;
 const CARD_RISE_BUFFER = 80;
+const CARD_COLORS = [
+  "#FFDD31",
+  "#FF9DD8",
+  "#F37E4C",
+  "#0EC1E3",
+  "#94FF95",
+  "#B98BFF",
+  "#EBFF95",
+  "#6BFFF0",
+  "#A7BFFF",
+];
 
 const DIGIT_SVGS = {
   "0": { viewBox: "0 0 1040 1373", inner: `<path fill-rule="evenodd" clip-rule="evenodd" d="M166.364 1372.08V1288.94H83.1364V1205.77H0V166.311H83.1364V83.1466H166.364V0.000854492H873.161V83.1466H956.299V166.311H1039.53V1205.77H956.299V1288.94H873.161V1372.08H166.364Z" fill="var(--accent)"/>
@@ -34,7 +45,7 @@ const DIGIT_SVGS = {
 };
 
 const STYLES = `
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;800&display=swap");
 
 :root {
   --bg: #000000;
@@ -42,8 +53,8 @@ const STYLES = `
   --text: #FFFFFF;
   --muted: rgba(255,255,255,0.4);
   --card-bg: #FFFFFF;
-  --card-text: #000000;
-  --card-muted: rgba(0,0,0,0.4);
+  --card-text: #101010;
+  --card-muted: rgba(0,0,0,0.55);
   --card-w: ${CARD_WIDTH}px;
   --card-h: ${CARD_HEIGHT}px;
   --card-gap: ${CARD_GAP}px;
@@ -66,7 +77,7 @@ html, body, #root {
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Sans", sans-serif;
   overflow: hidden;
 }
 
@@ -187,35 +198,54 @@ body {
   gap: 6px;
 }
 
-.milestone-line {
+.milestone-top {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  font-size: 0.65rem;
-  line-height: 1.35;
-  color: var(--card-muted);
-}
-
-.milestone-line::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--card-muted);
-  flex: 0 0 auto;
-}
-
-.milestone-amount {
+  font-family: "IBM Plex Sans", sans-serif;
   font-size: 1.1rem;
-  font-weight: 600;
+  font-weight: 800;
   line-height: 1.1;
   color: var(--card-text);
+  letter-spacing: 0.01em;
+  text-align: center;
 }
 
-.milestone-amount-sub {
+.milestone-amounts {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.milestone-time,
+.milestone-usd {
+  font: inherit;
+  color: inherit;
+  text-align: center;
+}
+
+.milestone-usd {
+  font-weight: 700;
+}
+
+.milestone-rub {
   font-size: 0.72rem;
   font-style: italic;
   color: var(--card-muted);
+  text-align: center;
+}
+
+.milestone-label {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 1.1rem;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--card-text);
+  text-align: center;
+  margin-top: 6px;
 }
 
 .source {
@@ -224,7 +254,7 @@ body {
   bottom: 32px;
   color: var(--muted);
   font-size: 0.6rem;
-  font-family: "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Sans", sans-serif;
 }
 
 @media (max-width: 640px) {
@@ -317,6 +347,14 @@ const getFadeProfile = (placeFromRight) => {
   return { enter, exit, enterFrom };
 };
 
+const formatTimeMmSs = (seconds) => {
+  if (!Number.isFinite(seconds)) return "";
+  const total = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${minutes} мин. ${String(secs).padStart(2, "0")} сек.`;
+};
+
 const Counter = ({ value }) => {
   const formatted = new Intl.NumberFormat("ru-RU").format(value).replace(/\u00A0/g, " ");
   const display = `$${formatted}`;
@@ -361,10 +399,12 @@ const MilestoneCard = ({ card }) => {
   const startY = card.startY ?? 0;
   const travelY = card.travelY ?? CARD_HEIGHT * 4;
   const duration = card.duration ?? 12;
+  const timeLabel = formatTimeMmSs(card.seconds) || "0:00";
 
   return (
     <motion.div
       className="milestone-card"
+      style={{ "--card-bg": card.color }}
       initial={{ y: startY, opacity: 0, x: offsetX }}
       animate={{ y: -travelY, opacity: 1, x: offsetX }}
       exit={{ opacity: 0, transition: { duration: 0.2 } }}
@@ -373,13 +413,14 @@ const MilestoneCard = ({ card }) => {
         opacity: { duration: 0.4, ease: "easeOut" },
       }}
     >
-      <div className="milestone-line">
-        <span>
-          {card.secondsLabel} сек. · {card.label}
+      <div className="milestone-top">
+        <span className="milestone-time">{timeLabel}</span>
+        <span className="milestone-amounts">
+          <span className="milestone-usd">{`$${card.usd}`}</span>
+          <span className="milestone-rub">≈ {card.rub} ₽</span>
         </span>
       </div>
-      <div className="milestone-amount">{`$${card.usd}`}</div>
-      <div className="milestone-amount-sub">≈ {card.rub} ₽</div>
+      <div className="milestone-label">{card.label}</div>
     </motion.div>
   );
 };
@@ -442,6 +483,11 @@ const App = () => {
     return Math.max(0, Math.round(needed));
   };
 
+  const getCardColor = () => {
+    const index = Math.floor(Math.random() * CARD_COLORS.length);
+    return CARD_COLORS[index] || CARD_COLORS[0];
+  };
+
   const getCardFlight = (startY = 0) => {
     if (typeof window === "undefined") {
       const travelY = CARD_HEIGHT * 4;
@@ -485,6 +531,7 @@ const App = () => {
         const withOffset = {
           ...nextCard,
           offsetX: getCardOffset(),
+          color: getCardColor(),
           startY,
           travelY,
           duration,
@@ -528,16 +575,3 @@ const App = () => {
 };
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
