@@ -7,6 +7,16 @@ const SECONDS_FORMATTER = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 2,
 });
 
+const formatAmount = (value, raw) => {
+  if (!Number.isFinite(value)) return raw || "";
+  const hasFraction = raw && /[.,]\d/.test(raw);
+  const formatter = new Intl.NumberFormat("ru-RU", {
+    maximumFractionDigits: hasFraction ? 2 : 0,
+    minimumFractionDigits: hasFraction ? 2 : 0,
+  });
+  return formatter.format(value).replace(/\u00a0/g, " ");
+};
+
 const parseCsv = (text) => {
   const rows = [];
   let row = [];
@@ -138,8 +148,8 @@ const parseMilestones = (csv) => {
       return {
         id: Number.isFinite(idParsed) ? idParsed : rowIndex + 1,
         label,
-        rub: rubRaw,
-        usd: usdRaw,
+        rub: formatAmount(parseAmount(rubRaw), rubRaw),
+        usd: formatAmount(usdValue, usdRaw),
         usdValue,
         seconds,
         secondsLabel,

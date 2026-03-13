@@ -142,6 +142,13 @@ body {
   flex: 0 0 var(--comma-w);
 }
 
+.symbol-space {
+  width: var(--comma-w);
+  height: var(--digit-h);
+  flex: 0 0 var(--comma-w);
+  display: block;
+}
+
 .symbol-text {
   font-family: "Cormorant Garamond", serif;
   font-size: 60px;
@@ -277,6 +284,10 @@ const SvgSymbol = ({ char, type }) => {
     );
   }
 
+  if (char === " ") {
+    return <span className="symbol-space" aria-hidden="true" />;
+  }
+
   return (
     <svg className={"symbol-svg " + type} viewBox="0 0 60 80" aria-hidden="true">
       <text className="symbol-text" x="30" y="65" textAnchor="middle">
@@ -307,7 +318,8 @@ const getFadeProfile = (placeFromRight) => {
 };
 
 const Counter = ({ value }) => {
-  const display = `$${value.toLocaleString("en-US")}`;
+  const formatted = new Intl.NumberFormat("ru-RU").format(value).replace(/\u00A0/g, " ");
+  const display = `$${formatted}`;
   const chars = display.split("");
   const digitCount = display.replace(/\D/g, "").length;
   let digitIndex = 0;
@@ -334,7 +346,11 @@ const Counter = ({ value }) => {
           return <SvgSymbol key={`symbol-${index}`} char="$" type="dollar" />;
         }
 
-        return <SvgSymbol key={`symbol-${index}`} char="," type="comma" />;
+        if (char === " ") {
+          return <SvgSymbol key={`symbol-${index}`} char=" " type="space" />;
+        }
+
+        return <SvgSymbol key={`symbol-${index}`} char={char} type="comma" />;
       })}
     </div>
   );
@@ -512,7 +528,6 @@ const App = () => {
 };
 
 export default App;
-
 
 
 
