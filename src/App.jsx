@@ -7,10 +7,8 @@ const RATE = RATE_USD_PER_SECOND;
 const CARD_WIDTH = 280;
 const CARD_HEIGHT = 136;
 const CARD_GAP = 8;
-const CARD_RISE_SPEED = 60;
+const CARD_RISE_SPEED = 180;
 const CARD_RISE_BUFFER = 80;
-const CARD_DISPLAY_DURATION = 2.2;
-const CARD_TRAVEL_Y = CARD_HEIGHT + 40;
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -434,8 +432,8 @@ const Counter = ({ value }) => {
 const MilestoneCard = ({ card }) => {
   const offsetX = card.offsetX ?? 0;
   const startY = card.startY ?? 0;
-  const travelY = card.travelY ?? CARD_TRAVEL_Y;
-  const duration = card.duration ?? CARD_DISPLAY_DURATION;
+  const travelY = card.travelY ?? CARD_HEIGHT * 4;
+  const duration = card.duration ?? 4;
   const timeLabel = formatTimeMmSs(card.seconds) || "0:00";
   const zIndex = Number.isFinite(card.layerOrder) ? card.layerOrder : 1;
 
@@ -487,13 +485,38 @@ const App = () => {
   const [dollars, setDollars] = useState(0);
   const [visibleCards, setVisibleCards] = useState([]);
   const nextMilestoneRef = useRef(0);
-  const emittedMilestonesRef = useRef(new Set());
   const cardInstanceRef = useRef(0);
-  const activeCardRef = useRef(null);
+  
+  const getCardOffset = () => {
+    if (typeof window === "undefined") {
+      return 0;
+    }
+
+    const viewportWidth = window.innerWidth || CARD_WIDTH;
+    const isNarrow = viewportWidth <= 640;
+    const cardWidth = isNarrow ? viewportWidth * 0.9 : CARD_WIDTH;
+    const safeMargin = Math.max(0, (viewportWidth - cardWidth) / 2);
+    const maxOffset = Math.max(0, Math.min(140, safeMargin * 0.75));
+    const jitter = (Math.random() * 2 - 1) * maxOffset;
+
+    return Math.round(jitter);
+  };
 
   const getCardColor = () => {
     const index = Math.floor(Math.random() * CARD_COLORS.length);
     return CARD_COLORS[index] || CARD_COLORS[0];
+  };
+
+  const getCardFlight = (startY = 0) => {
+    if (typeof window === "undefined") {
+      const travelY = CARD_HEIGHT * 4;
+      return { travelY, duration: (travelY + startY) / CARD_RISE_SPEED };
+    }
+
+    const travelY = window.innerHeight + CARD_HEIGHT + CARD_RISE_BUFFER;
+    const duration = (travelY + startY) / CARD_RISE_SPEED;
+
+    return { travelY, duration };
   };
 
   useEffect(() => {
@@ -502,9 +525,7 @@ const App = () => {
     const start = performance.now();
 
     nextMilestoneRef.current = 0;
-    emittedMilestonesRef.current = new Set();
     cardInstanceRef.current = 0;
-    activeCardRef.current = null;
 
     const tick = (now) => {
       if (!isActive) return;
@@ -516,18 +537,12 @@ const App = () => {
       setDollars(amount);
 
       let nextIndex = nextMilestoneRef.current;
-      let latestTriggered = null;
+      const dueCards = [];
       while (
         nextIndex < MILESTONES.length &&
         isMilestoneDue(MILESTONES[nextIndex], amount, elapsedSeconds)
       ) {
-        const milestone = MILESTONES[nextIndex];
-        const eventId = milestone.eventId ?? `fallback:${nextIndex}`;
-
-        if (!emittedMilestonesRef.current.has(eventId)) {
-          emittedMilestonesRef.current.add(eventId);
-          latestTriggered = milestone;
-        }
+        dueCards.push(MILESTONES[nextIndex]);
         nextIndex += 1;
       }
 
@@ -535,31 +550,32 @@ const App = () => {
         nextMilestoneRef.current = nextIndex;
       }
 
-      if (latestTriggered) {
-        const nextCard = latestTriggered;
-        const layerOrder = cardInstanceRef.current + 1;
-        const instanceKey = `${nextCard.eventId ?? nextCard.id}:${layerOrder}`;
-        cardInstanceRef.current = layerOrder;
-        const withOffset = {
-          ...nextCard,
-          instanceKey,
-          layerOrder,
-          offsetX: 0,
-          color: getCardColor(),
-          startY: 0,
-          travelY: CARD_TRAVEL_Y,
-          duration: CARD_DISPLAY_DURATION,
-          bornAt: now,
-        };
-        activeCardRef.current = withOffset;
-        setVisibleCards([withOffset]);
+      if (dueCards.length > 0) {
+        const nextCards = dueCards.map((nextCard) => {
+          const layerOrder = cardInstanceRef.current + 1;
+          cardInstanceRef.current = layerOrder;
+          const { travelY, duration } = getCardFlight(0);
+
+          return {
+            ...nextCard,
+            instanceKey: `${nextCard.eventId ?? nextCard.id}:${layerOrder}`,
+            layerOrder,
+            offsetX: getCardOffset(),
+            color: getCardColor(),
+            startY: 0,
+            travelY,
+            duration,
+            bornAt: now,
+          };
+        });
+
+        setVisibleCards((prev) => [...prev, ...nextCards]);
       }
 
-      const activeCard = activeCardRef.current;
-      if (activeCard && now - activeCard.bornAt >= activeCard.duration * 1000) {
-        activeCardRef.current = null;
-        setVisibleCards([]);
-      }
+      setVisibleCards((prev) => {
+        const next = prev.filter((card) => now - card.bornAt < card.duration * 1000);
+        return next.length === prev.length ? prev : next;
+      });
 
       if (isActive) {
         rafId = requestAnimationFrame(tick);
