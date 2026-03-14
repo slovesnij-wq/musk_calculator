@@ -9,6 +9,8 @@ const CARD_HEIGHT = 136;
 const CARD_GAP = 8;
 const CARD_RISE_SPEED = 180;
 const CARD_RISE_BUFFER = 80;
+const CARD_MIN_DURATION_FACTOR = 1.7;
+const CARD_GAP_HOLD_SECONDS = 0.6;
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -481,6 +483,12 @@ const isMilestoneDue = (milestone, amount, elapsedSeconds) => {
   return Number.isFinite(milestone.seconds) && elapsedSeconds >= milestone.seconds;
 };
 
+const getMilestoneTriggerSeconds = (milestone) => {
+  if (Number.isFinite(milestone?.triggerAtSeconds)) return milestone.triggerAtSeconds;
+  if (Number.isFinite(milestone?.seconds)) return milestone.seconds;
+  return null;
+};
+
 const App = () => {
   const [dollars, setDollars] = useState(0);
   const [visibleCards, setVisibleCards] = useState([]);
@@ -507,14 +515,32 @@ const App = () => {
     return CARD_COLORS[index] || CARD_COLORS[0];
   };
 
-  const getCardFlight = (startY = 0) => {
+  const getCardFlight = (milestoneIndex, startY = 0) => {
     if (typeof window === "undefined") {
       const travelY = CARD_HEIGHT * 4;
-      return { travelY, duration: (travelY + startY) / CARD_RISE_SPEED };
+      const baseDuration = (travelY + startY) / CARD_RISE_SPEED;
+      return { travelY, duration: baseDuration * CARD_MIN_DURATION_FACTOR };
     }
 
     const travelY = window.innerHeight + CARD_HEIGHT + CARD_RISE_BUFFER;
-    const duration = (travelY + startY) / CARD_RISE_SPEED;
+    const baseDuration = (travelY + startY) / CARD_RISE_SPEED;
+    const minDuration = baseDuration * CARD_MIN_DURATION_FACTOR;
+
+    const current = MILESTONES[milestoneIndex];
+    const next = MILESTONES[milestoneIndex + 1];
+    const currentTrigger = getMilestoneTriggerSeconds(current);
+    const nextTrigger = getMilestoneTriggerSeconds(next);
+    const gapDuration =
+      Number.isFinite(currentTrigger) && Number.isFinite(nextTrigger)
+        ? Math.max(0, nextTrigger - currentTrigger) + CARD_GAP_HOLD_SECONDS
+        : null;
+
+    let duration = minDuration;
+    if (Number.isFinite(gapDuration)) {
+      duration = Math.max(minDuration, gapDuration);
+    } else if (!next) {
+      duration = minDuration * 1.2;
+    }
 
     return { travelY, duration };
   };
@@ -542,7 +568,7 @@ const App = () => {
         nextIndex < MILESTONES.length &&
         isMilestoneDue(MILESTONES[nextIndex], amount, elapsedSeconds)
       ) {
-        dueCards.push(MILESTONES[nextIndex]);
+        dueCards.push({ milestone: MILESTONES[nextIndex], index: nextIndex });
         nextIndex += 1;
       }
 
@@ -551,10 +577,10 @@ const App = () => {
       }
 
       if (dueCards.length > 0) {
-        const nextCards = dueCards.map((nextCard) => {
+        const nextCards = dueCards.map(({ milestone: nextCard, index }) => {
           const layerOrder = cardInstanceRef.current + 1;
           cardInstanceRef.current = layerOrder;
-          const { travelY, duration } = getCardFlight(0);
+          const { travelY, duration } = getCardFlight(index, 0);
 
           return {
             ...nextCard,
