@@ -4,8 +4,8 @@ import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
 
 const RATE = RATE_USD_PER_SECOND;
-const CARD_WIDTH = 360;
-const CARD_HEIGHT = 112;
+const CARD_WIDTH = 280;
+const CARD_HEIGHT = 136;
 const CARD_GAP = 8;
 const CARD_RISE_SPEED = 60;
 const CARD_RISE_BUFFER = 80;
@@ -216,7 +216,7 @@ body {
   color: var(--card-text);
   border-radius: 0;
   border: none;
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -288,7 +288,7 @@ body {
     --digit-h: 16vw;
     --symbol-w: var(--digit-w);
     --comma-w: 4vw;
-    --card-w: 90vw;
+    --card-w: 82vw;
     --counter-top: 35%;
     --hero-gap: calc(var(--digit-h) * 0.24);
   }
