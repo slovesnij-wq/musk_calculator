@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
+import hiaiLogo from "./assets/hiai-logo.svg";
 import howWeCountedMarkdown from "./content/how-we-counted.md?raw";
 
 const RATE = RATE_USD_PER_SECOND;
@@ -293,10 +294,12 @@ body {
   background: rgba(0, 0, 0, 0.78);
   color: #FFDD31;
   font-family: "IBM Plex Sans", sans-serif;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   line-height: 1;
   padding: 9px 12px;
+  width: 236px;
+  text-align: center;
   cursor: pointer;
   border-radius: 999px;
   transition: background 0.2s ease, border-color 0.2s ease;
@@ -305,6 +308,44 @@ body {
 .source-toggle:hover {
   background: rgba(255, 221, 49, 0.16);
   border-color: rgba(255, 221, 49, 0.9);
+}
+
+.credits-link {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #FFDD31;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-decoration: none;
+  width: 236px;
+  text-align: center;
+  border: 1px solid rgba(255, 221, 49, 0.6);
+  background: rgba(0, 0, 0, 0.78);
+  border-radius: 16px;
+  padding: 7px 10px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.credits-link:hover {
+  color: #FFE86A;
+  background: rgba(255, 221, 49, 0.16);
+  border-color: rgba(255, 221, 49, 0.9);
+}
+
+.credits-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+}
+
+.credits-text {
+  display: inline-block;
+  white-space: normal;
+  justify-self: center;
 }
 
 .methodology-panel {
@@ -437,8 +478,22 @@ body {
   }
 
   .source-toggle {
-    font-size: 0.72rem;
+    font-size: 0.74rem;
     padding: 8px 10px;
+    width: min(236px, calc(100vw - 24px));
+  }
+
+  .credits-link {
+    width: min(236px, calc(100vw - 24px));
+    font-size: 0.66rem;
+    padding: 7px 9px;
+    gap: 8px;
+  }
+
+  .credits-icon {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
   }
 
   .methodology-panel {
@@ -1001,6 +1056,19 @@ const App = () => {
         >
           Как мы считали?
         </button>
+        <a
+          className="credits-link"
+          href="https://t.me/+2Dxhqn5YRvE0NzFi"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <img className="credits-icon" src={hiaiLogo} alt="" aria-hidden="true" />
+          <span className="credits-text">
+            Подготовлено каналом Hi, AI!
+            <br />
+            Подпишитесь!
+          </span>
+        </a>
       </div>
       <div className="source">Источник: рост состояния $187 млрд в 2025 г. Forbes, 2026</div>
     </div>
