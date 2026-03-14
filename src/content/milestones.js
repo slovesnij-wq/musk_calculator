@@ -81,9 +81,22 @@ const parseAmount = (value) => {
   let normalized = compact;
 
   if (hasComma && hasDot) {
-    normalized = normalized.replace(/,/g, "");
+    // Use the last separator as decimal and strip the other one as thousands.
+    const lastComma = compact.lastIndexOf(",");
+    const lastDot = compact.lastIndexOf(".");
+    const decimal = lastComma > lastDot ? "," : ".";
+    const thousands = decimal === "," ? "." : ",";
+    normalized = compact.split(thousands).join("").replace(decimal, ".");
   } else if (hasComma) {
-    normalized = normalized.replace(/,/g, ".");
+    // "1,234,567" => thousands, "1,23" => decimal.
+    normalized = /^\d{1,3}(,\d{3})+$/.test(compact)
+      ? compact.replace(/,/g, "")
+      : compact.replace(/,/g, ".");
+  } else if (hasDot) {
+    // "1.234.567" => thousands, "1.23" => decimal.
+    normalized = /^\d{1,3}(\.\d{3})+$/.test(compact)
+      ? compact.replace(/\./g, "")
+      : compact;
   }
 
   const parsed = Number.parseFloat(normalized);
@@ -138,20 +151,31 @@ const parseMilestones = (csv) => {
         Number.isFinite(usdValue) && RATE_USD_PER_SECOND > 0
           ? usdValue / RATE_USD_PER_SECOND
           : null;
-      const seconds = Number.isFinite(secondsFromUsd) ? secondsFromUsd : secondsFromCsv;
+      const triggerAtSeconds = Number.isFinite(secondsFromCsv)
+        ? secondsFromCsv
+        : secondsFromUsd;
       const secondsLabel =
-        Number.isFinite(secondsFromUsd)
-          ? formatSeconds(secondsFromUsd)
-          : secondsLabelRaw || formatSeconds(secondsFromCsv);
-      const sortKey = Number.isFinite(usdValue) ? usdValue : seconds;
+        Number.isFinite(secondsFromCsv)
+          ? formatSeconds(secondsFromCsv)
+          : secondsLabelRaw || formatSeconds(secondsFromUsd);
+      const sortKey = triggerAtSeconds;
+      const parsedId = Number.isFinite(idParsed) ? idParsed : rowIndex + 1;
+      const triggerKey = Number.isFinite(triggerAtSeconds)
+        ? `sec:${triggerAtSeconds}`
+        : Number.isFinite(usdValue)
+          ? `usd:${usdValue}`
+          : `row:${rowIndex}`;
+      const eventId = `${parsedId}:${rowIndex}:${triggerKey}`;
 
       return {
-        id: Number.isFinite(idParsed) ? idParsed : rowIndex + 1,
+        id: parsedId,
+        eventId,
         label,
         rub: formatAmount(parseAmount(rubRaw), rubRaw),
         usd: formatAmount(usdValue, usdRaw),
         usdValue,
-        seconds,
+        seconds: triggerAtSeconds,
+        triggerAtSeconds,
         secondsLabel,
         sortKey,
       };
