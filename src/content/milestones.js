@@ -1,6 +1,6 @@
 ﻿import csvText from "./milestones.csv?raw";
 
-export const RATE_USD_PER_SECOND = 10717;
+export const RATE_USD_PER_SECOND = 9677.82;
 
 const SECONDS_FORMATTER = new Intl.NumberFormat("ru-RU", {
   minimumFractionDigits: 2,
@@ -103,13 +103,6 @@ const parseAmount = (value) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
-const parseSeconds = (value) => {
-  if (!value) return null;
-  const normalized = value.replace(/\s/g, "").replace(",", ".");
-  const parsed = Number.parseFloat(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 const formatSeconds = (value) => {
   if (!Number.isFinite(value)) return "";
   return SECONDS_FORMATTER.format(value);
@@ -135,7 +128,6 @@ const parseMilestones = (csv) => {
   const subjectIndex = getIndex(["Предмет"], 1);
   const rubIndex = getIndex(["Стоимость, руб"], 2);
   const usdIndex = getIndex(["Стоимость, $"], 3);
-  const secondsIndex = getIndex(["Секунд зарабатывает маск"], 4);
 
   return rows
     .map((row, rowIndex) => {
@@ -144,20 +136,13 @@ const parseMilestones = (csv) => {
       const label = (row[subjectIndex] ?? "").trim();
       const rubRaw = (row[rubIndex] ?? "").trim();
       const usdRaw = (row[usdIndex] ?? "").trim();
-      const secondsLabelRaw = (row[secondsIndex] ?? "").trim();
       const usdValue = parseAmount(usdRaw);
-      const secondsFromCsv = parseSeconds(secondsLabelRaw);
       const secondsFromUsd =
         Number.isFinite(usdValue) && RATE_USD_PER_SECOND > 0
           ? usdValue / RATE_USD_PER_SECOND
           : null;
-      const triggerAtSeconds = Number.isFinite(secondsFromCsv)
-        ? secondsFromCsv
-        : secondsFromUsd;
-      const secondsLabel =
-        Number.isFinite(secondsFromCsv)
-          ? formatSeconds(secondsFromCsv)
-          : secondsLabelRaw || formatSeconds(secondsFromUsd);
+      const triggerAtSeconds = secondsFromUsd;
+      const secondsLabel = formatSeconds(secondsFromUsd);
       const sortKey = triggerAtSeconds;
       const parsedId = Number.isFinite(idParsed) ? idParsed : rowIndex + 1;
       const triggerKey = Number.isFinite(triggerAtSeconds)

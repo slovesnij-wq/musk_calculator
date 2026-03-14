@@ -384,12 +384,25 @@ const getFadeProfile = (placeFromRight) => {
   return { enter, exit, enterFrom };
 };
 
-const formatTimeMmSs = (seconds) => {
+const CARD_SECONDS_FORMATTER = new Intl.NumberFormat("ru-RU", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const WORD_MINUTES = "\u043c\u0438\u043d.";
+const WORD_SECONDS = "\u0441\u0435\u043a.";
+
+const formatMilestoneTime = (seconds) => {
   if (!Number.isFinite(seconds)) return "";
-  const total = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(total / 60);
-  const secs = total % 60;
-  return `${minutes} мин. ${String(secs).padStart(2, "0")} сек.`;
+  const totalSeconds = Math.max(0, seconds);
+
+  if (totalSeconds < 60) {
+    return `${CARD_SECONDS_FORMATTER.format(totalSeconds)} ${WORD_SECONDS}`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  return `${minutes} ${WORD_MINUTES} ${String(secs).padStart(2, "0")} ${WORD_SECONDS}`;
 };
 
 const Counter = ({ value }) => {
@@ -436,7 +449,10 @@ const MilestoneCard = ({ card }) => {
   const startY = card.startY ?? 0;
   const travelY = card.travelY ?? CARD_HEIGHT * 4;
   const duration = card.duration ?? 4;
-  const timeLabel = formatTimeMmSs(card.seconds) || "0:00";
+  const timeValue = Number.isFinite(card.triggerAtSeconds)
+    ? card.triggerAtSeconds
+    : card.seconds;
+  const timeLabel = formatMilestoneTime(timeValue) || `0,00 ${WORD_SECONDS}`;
   const zIndex = Number.isFinite(card.layerOrder) ? card.layerOrder : 1;
 
   return (
@@ -635,3 +651,5 @@ const App = () => {
 };
 
 export default App;
+
+
