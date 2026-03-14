@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
+import howWeCountedMarkdown from "./content/how-we-counted.md?raw";
 
 const RATE = RATE_USD_PER_SECOND;
 const CARD_WIDTH = 280;
@@ -276,13 +277,132 @@ body {
   margin-top: 6px;
 }
 
-.source {
+.methodology-anchor {
   position: fixed;
-  right: 32px;
-  bottom: 32px;
-  color: var(--muted);
-  font-size: 0.6rem;
+  right: 24px;
+  bottom: 24px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.source-toggle {
+  border: 1px solid rgba(255, 221, 49, 0.6);
+  background: rgba(0, 0, 0, 0.78);
+  color: #FFDD31;
   font-family: "IBM Plex Sans", sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-radius: 999px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.source-toggle:hover {
+  background: rgba(255, 221, 49, 0.16);
+  border-color: rgba(255, 221, 49, 0.9);
+}
+
+.methodology-panel {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(68vh, 560px);
+  overflow: auto;
+  background: rgba(8, 8, 8, 0.96);
+  border: 1px solid rgba(255, 221, 49, 0.48);
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  padding: 14px 14px 12px;
+}
+
+.methodology-close {
+  margin-left: auto;
+  margin-bottom: 8px;
+  display: block;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.methodology-close:hover {
+  color: #FFFFFF;
+}
+
+.memo-content {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.memo-content h1 {
+  margin: 0 0 8px;
+  color: #FFDD31;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.memo-content h2 {
+  margin: 14px 0 8px;
+  color: #FFDD31;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.memo-content p {
+  margin: 0 0 8px;
+}
+
+.memo-content blockquote {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-left: 2px solid rgba(255, 221, 49, 0.75);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.memo-content hr {
+  border: none;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.18);
+  margin: 12px 0;
+}
+
+.memo-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 6px;
+}
+
+.memo-content th,
+.memo-content td {
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 6px 6px 6px 0;
+}
+
+.memo-content th {
+  color: #FFDD31;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.memo-content td {
+  font-size: 0.74rem;
+}
+
+.memo-content a {
+  color: #9AD6FF;
+}
+
+.source {
+  display: none;
 }
 
 @media (max-width: 640px) {
@@ -310,7 +430,23 @@ body {
   .bottom-text {
     font-size: min(calc(var(--digit-h) * 0.2), 3.6vw);
   }
+
+  .methodology-anchor {
+    right: 12px;
+    bottom: 12px;
   }
+
+  .source-toggle {
+    font-size: 0.72rem;
+    padding: 8px 10px;
+  }
+
+  .methodology-panel {
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(62vh, 500px);
+    padding: 12px 12px 10px;
+  }
+}
 `;
 
 const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
@@ -404,6 +540,182 @@ const formatMilestoneTime = (seconds) => {
   const secs = Math.floor(totalSeconds % 60);
   return `${minutes} ${WORD_MINUTES} ${String(secs).padStart(2, "0")} ${WORD_SECONDS}`;
 };
+
+const INLINE_TOKEN_RE = /(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g;
+
+const parseInlineMarkdown = (text, keyPrefix = "inline") =>
+  text.split(INLINE_TOKEN_RE).map((part, index) => {
+    const key = `${keyPrefix}-${index}`;
+
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={key}>{part.slice(2, -2)}</strong>;
+    }
+
+    if (part.startsWith("[") && part.includes("](") && part.endsWith(")")) {
+      const splitIndex = part.indexOf("](");
+      const label = part.slice(1, splitIndex);
+      const href = part.slice(splitIndex + 2, -1);
+
+      return (
+        <a key={key} href={href} target="_blank" rel="noreferrer">
+          {label}
+        </a>
+      );
+    }
+
+    return <React.Fragment key={key}>{part}</React.Fragment>;
+  });
+
+const parseTableRow = (line) =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+
+const isMarkdownTableDivider = (line) => {
+  const cells = parseTableRow(line);
+  return (
+    cells.length > 0 &&
+    cells.every((cell) => cell.length > 0 && /^:?-{3,}:?$/.test(cell))
+  );
+};
+
+const parseMemoBlocks = (markdown) => {
+  const lines = markdown.split(/\r?\n/);
+  const blocks = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      i += 1;
+      continue;
+    }
+
+    if (trimmed === "---" || /^_{3,}$/.test(trimmed)) {
+      blocks.push({ type: "hr" });
+      i += 1;
+      continue;
+    }
+
+    if (line.startsWith("# ")) {
+      blocks.push({ type: "h1", text: line.slice(2).trim() });
+      i += 1;
+      continue;
+    }
+
+    if (line.startsWith("## ")) {
+      blocks.push({ type: "h2", text: line.slice(3).trim() });
+      i += 1;
+      continue;
+    }
+
+    if (line.startsWith("> ")) {
+      const quoteLines = [];
+      while (i < lines.length && lines[i].startsWith("> ")) {
+        quoteLines.push(lines[i].slice(2).trim());
+        i += 1;
+      }
+      blocks.push({ type: "blockquote", text: quoteLines.join(" ") });
+      continue;
+    }
+
+    if (line.startsWith("|")) {
+      const tableLines = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) {
+        tableLines.push(lines[i]);
+        i += 1;
+      }
+
+      const header = parseTableRow(tableLines[0] || "");
+      const bodyStart = tableLines[1] && isMarkdownTableDivider(tableLines[1]) ? 2 : 1;
+      const rows = tableLines.slice(bodyStart).map(parseTableRow);
+
+      blocks.push({ type: "table", header, rows });
+      continue;
+    }
+
+    const paragraph = [trimmed];
+    i += 1;
+    while (i < lines.length) {
+      const next = lines[i];
+      const nextTrimmed = next.trim();
+      if (
+        !nextTrimmed ||
+        next.startsWith("# ") ||
+        next.startsWith("## ") ||
+        next.startsWith("> ") ||
+        nextTrimmed === "---" ||
+        /^_{3,}$/.test(nextTrimmed) ||
+        next.trim().startsWith("|")
+      ) {
+        break;
+      }
+      paragraph.push(nextTrimmed);
+      i += 1;
+    }
+
+    blocks.push({ type: "p", text: paragraph.join(" ") });
+  }
+
+  return blocks;
+};
+
+const METHODOLOGY_BLOCKS = parseMemoBlocks(howWeCountedMarkdown);
+
+const MethodologyMemo = () => (
+  <div className="memo-content">
+    {METHODOLOGY_BLOCKS.map((block, blockIndex) => {
+      if (block.type === "h1") {
+        return <h1 key={`h1-${blockIndex}`}>{parseInlineMarkdown(block.text, `h1-${blockIndex}`)}</h1>;
+      }
+      if (block.type === "h2") {
+        return <h2 key={`h2-${blockIndex}`}>{parseInlineMarkdown(block.text, `h2-${blockIndex}`)}</h2>;
+      }
+      if (block.type === "blockquote") {
+        return (
+          <blockquote key={`q-${blockIndex}`}>
+            {parseInlineMarkdown(block.text, `q-${blockIndex}`)}
+          </blockquote>
+        );
+      }
+      if (block.type === "hr") {
+        return <hr key={`hr-${blockIndex}`} />;
+      }
+      if (block.type === "table") {
+        return (
+          <table key={`table-${blockIndex}`}>
+            <thead>
+              <tr>
+                {block.header.map((cell, cellIndex) => (
+                  <th key={`th-${blockIndex}-${cellIndex}`}>
+                    {parseInlineMarkdown(cell, `th-${blockIndex}-${cellIndex}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIndex) => (
+                <tr key={`row-${blockIndex}-${rowIndex}`}>
+                  {row.map((cell, cellIndex) => (
+                    <td key={`td-${blockIndex}-${rowIndex}-${cellIndex}`}>
+                      {parseInlineMarkdown(cell, `td-${blockIndex}-${rowIndex}-${cellIndex}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      }
+      return <p key={`p-${blockIndex}`}>{parseInlineMarkdown(block.text, `p-${blockIndex}`)}</p>;
+    })}
+  </div>
+);
 
 const Counter = ({ value }) => {
   const formatted = new Intl.NumberFormat("ru-RU").format(value).replace(/\u00A0/g, " ");
@@ -508,6 +820,7 @@ const getMilestoneTriggerSeconds = (milestone) => {
 const App = () => {
   const [dollars, setDollars] = useState(0);
   const [visibleCards, setVisibleCards] = useState([]);
+  const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
   const nextMilestoneRef = useRef(0);
   const cardInstanceRef = useRef(0);
   
@@ -632,6 +945,19 @@ const App = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMethodologyOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsMethodologyOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isMethodologyOpen]);
+
   return (
     <div className="app">
       <style>{STYLES}</style>
@@ -644,6 +970,37 @@ const App = () => {
       </div>
       <div className="milestones">
         <MilestoneStack cards={visibleCards} />
+      </div>
+      <div className="methodology-anchor">
+        <AnimatePresence>
+          {isMethodologyOpen && (
+            <motion.div
+              className="methodology-panel"
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 4, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <button
+                type="button"
+                className="methodology-close"
+                aria-label="Close note"
+                onClick={() => setIsMethodologyOpen(false)}
+              >
+                x
+              </button>
+              <MethodologyMemo />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        <button
+          type="button"
+          className="source-toggle"
+          onClick={() => setIsMethodologyOpen((prev) => !prev)}
+          aria-expanded={isMethodologyOpen}
+        >
+          Как мы считали?
+        </button>
       </div>
       <div className="source">Источник: рост состояния $187 млрд в 2025 г. Forbes, 2026</div>
     </div>
