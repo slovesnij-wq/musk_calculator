@@ -62,6 +62,8 @@ const STYLES = `
   --digit-h: 11vw;
   --symbol-w: var(--digit-w);
   --comma-w: 3vw;
+  --counter-top: 34%;
+  --hero-gap: calc(var(--digit-h) * 0.28);
 }
 
 * {
@@ -89,24 +91,47 @@ body {
   background: var(--bg);
 }
 
-.top-text {
+.hero-block {
   position: absolute;
-  top: 10%;
+  top: var(--counter-top);
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  max-width: 96vw;
+  padding: 0 2vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--hero-gap);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.top-text {
   width: 100%;
   text-align: center;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  font-size: 0.75rem;
-  line-height: 1.6;
+  color: var(--text);
+  letter-spacing: 0.01em;
+  font-size: min(calc(var(--digit-h) * 0.52), 6vw);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.bottom-text {
+  width: 100%;
+  text-align: center;
+  color: var(--text);
+  letter-spacing: 0;
+  font-size: min(calc(var(--digit-h) * 0.26), 3vw);
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .counter-wrap {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 3;
+  position: relative;
+  z-index: 1;
 }
 
 .counter {
@@ -264,6 +289,8 @@ body {
     --symbol-w: var(--digit-w);
     --comma-w: 4vw;
     --card-w: 90vw;
+    --counter-top: 35%;
+    --hero-gap: calc(var(--digit-h) * 0.24);
   }
 
   .milestones {
@@ -273,6 +300,13 @@ body {
     bottom: 24px;
   }
 
+  .top-text {
+    font-size: min(calc(var(--digit-h) * 0.5), 7.2vw);
+  }
+
+  .bottom-text {
+    font-size: min(calc(var(--digit-h) * 0.2), 3.6vw);
+  }
   }
 `;
 
@@ -559,12 +593,12 @@ const App = () => {
   return (
     <div className="app">
       <style>{STYLES}</style>
-      <div className="top-text">
-        <div>ИЛОН МАСК ЗАРАБОТАЛ</div>
-        <div>С МОМЕНТА КАК ВЫ ОТКРЫЛИ ЭТУ СТРАНИЦУ</div>
-      </div>
-      <div className="counter-wrap">
-        <Counter value={dollars} />
+      <div className="hero-block">
+        <div className="top-text">Илон Маск заработал:</div>
+        <div className="counter-wrap">
+          <Counter value={dollars} />
+        </div>
+        <div className="bottom-text">...с того момента, как вы открыли эту страницу</div>
       </div>
       <div className="milestones">
         <MilestoneStack cards={visibleCards} />
