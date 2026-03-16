@@ -34,7 +34,7 @@
 | 20 | 37,5-футовая яхта Targa | [Seattle Yachts](https://www.seattleyachts.com/used-yachts-for-sale/37-targa-37-flybridge-2025-maritime/2847704_1) |
 | 21 | 550 тыс. доз вакцин от малярии R21/Matrix-M | [UN News](https://news.un.org/en/story/2025/11/1166432) |
 | 22 | Квартира Ларисы Долиной | [Лента.ру](https://lenta.ru/news/2025/12/18/verhovnyy-sud-raskryl-rynochnuyu-stoimost-kvartiry-dolinoy/) |
-| 23 | Курс препарата "Золгенсма" против спинальной мышечной атрофии -- одно из самых дорогих лекарств в мире | [NPR](https://www.npr.org/sections/health-shots/2019/05/24/725404168/at-2-125-million-new-gene-therapy-is-the-most-expensive-drug-ever) |
+| 23 | Курс препарата "Золгенсма" против спинальной мышечной атрофии — одно из самых дорогих лекарств в мире | [NPR](https://www.npr.org/sections/health-shots/2019/05/24/725404168/at-2-125-million-new-gene-therapy-is-the-most-expensive-drug-ever) |
 | 24 | Яхта Zeelander Z5 48 футов | [United Yacht](https://www.unitedyacht.com/used-yachts-for-sale/zeelander-z5-2024-a-noochette-2831998) |
 | 25 | Картина Рубенса «Христос на кресте», 1613 г. | [Artprice](https://www.artprice.com/artprice-news/12359/rubens-christ-on-the-cross-sold-for-over-3-million-in-versailles-rediscovery-and-appraisal-of-a-masterpiece-lost-for-400-years) |
 | 26 | 99,99% людей в мире зарабатывают меньше за целый год | [World Inequality Report 2026](https://wir2026.wid.world/insight/global-economic-inequity/) |
