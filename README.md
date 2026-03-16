@@ -12,6 +12,8 @@
 ## Quick Start
 
 ```bash
+git clone https://github.com/slovesnij-wq/musk_calculator.git
+cd musk_calculator
 npm install
 npm run dev
 ```
