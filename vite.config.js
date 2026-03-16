@@ -12,6 +12,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
         cover: fileURLToPath(new URL('./cover.html', import.meta.url)),
+        coverCards: fileURLToPath(new URL('./cover-cards.html', import.meta.url)),
       },
     },
   },
