@@ -15,7 +15,6 @@
 | 1 | Средняя месячная зарплата россиянина | [Коммерсантъ](https://www.kommersant.ru/doc/8480418) |
 | 2 | Средняя стоимость полного цикла лечения рака в РФ | [1prime.ru](https://1prime.ru/20260207/lechenie-867268373.html) |
 | 3 | Столько получит средний российский пенсионер за 10 лет | [РИА Новости](https://ria.ru/20260218/pensija-2075094054.html) |
-| 4 | Самая дешевая квартира в новостройке в Санкт-Петербурге | [Лента.ру](https://lenta.ru/news/2026/02/17/nazvana-tsena-samoy-deshevoy-kvartiry-v-peterburge/) |
 | 5 | Tesla Cybertruck в максимальной комплектации | [Tesla](https://www.tesla.com/cybertruck/design#overview) |
 | 6 | Годовая зарплата президента России | [Рамблер](https://www.rambler.ru/pro/professii/55653708-skolko-zarabatyvaet-prezident-rossii-v-2025-godu/) |
 | 7 | 20 лет аренды однушки в Москве | [Коммерсантъ](https://www.kommersant.ru/doc/8478485) |
