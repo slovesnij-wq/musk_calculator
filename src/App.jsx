@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
 import hiaiLogo from "./assets/hiai-logo.svg";
 import howWeCountedMarkdown from "./content/how-we-counted.md?raw";
+
+const Motion = motion;
 
 const RATE = RATE_USD_PER_SECOND;
 const CARD_WIDTH = 280;
@@ -13,6 +15,8 @@ const CARD_RISE_SPEED = 180;
 const CARD_RISE_BUFFER = 80;
 const CARD_MIN_DURATION_FACTOR = 1.7;
 const CARD_GAP_HOLD_SECONDS = 0.6;
+const COUNTER_UPDATE_FPS = 30;
+const COUNTER_UPDATE_INTERVAL_MS = 1000 / COUNTER_UPDATE_FPS;
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -226,6 +230,9 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 6px;
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .milestone-top {
@@ -513,7 +520,7 @@ const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
   return (
     <div className="digit-cell" aria-hidden="true">
       <AnimatePresence initial={false} mode="sync">
-        <motion.svg
+        <Motion.svg
           key={digit}
           className="digit-svg"
           viewBox={data.viewBox}
@@ -524,7 +531,7 @@ const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
           transition={{ duration: resolvedEnter, ease: "easeOut" }}
         >
           <g dangerouslySetInnerHTML={{ __html: data.inner }} />
-        </motion.svg>
+        </Motion.svg>
       </AnimatePresence>
     </div>
   );
@@ -579,6 +586,7 @@ const CARD_SECONDS_FORMATTER = new Intl.NumberFormat("ru-RU", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const COUNTER_FORMATTER = new Intl.NumberFormat("ru-RU");
 
 const WORD_MINUTES = "\u043c\u0438\u043d.";
 const WORD_SECONDS = "\u0441\u0435\u043a.";
@@ -773,19 +781,24 @@ const MethodologyMemo = () => (
 );
 
 const Counter = ({ value }) => {
-  const formatted = new Intl.NumberFormat("ru-RU").format(value).replace(/\u00A0/g, " ");
+  const formatted = COUNTER_FORMATTER.format(value).replace(/\u00A0/g, " ");
   const display = `$${formatted}`;
   const chars = display.split("");
   const digitCount = display.replace(/\D/g, "").length;
-  let digitIndex = 0;
+  const digitOrderByCharIndex = new Map();
+  chars.forEach((char, index) => {
+    if (/\d/.test(char)) {
+      digitOrderByCharIndex.set(index, digitOrderByCharIndex.size);
+    }
+  });
 
   return (
     <div className="counter" aria-label={display}>
       {chars.map((char, index) => {
         if (/\d/.test(char)) {
-          const placeFromRight = digitCount - 1 - digitIndex;
+          const currentDigitIndex = digitOrderByCharIndex.get(index) ?? 0;
+          const placeFromRight = digitCount - 1 - currentDigitIndex;
           const { enter, exit, enterFrom } = getFadeProfile(placeFromRight);
-          digitIndex += 1;
           return (
             <SvgDigit
               key={`digit-${index}`}
@@ -811,7 +824,7 @@ const Counter = ({ value }) => {
   );
 };
 
-const MilestoneCard = ({ card }) => {
+const MilestoneCard = React.memo(({ card }) => {
   const offsetX = card.offsetX ?? 0;
   const startY = card.startY ?? 0;
   const travelY = card.travelY ?? CARD_HEIGHT * 4;
@@ -823,7 +836,7 @@ const MilestoneCard = ({ card }) => {
   const zIndex = Number.isFinite(card.layerOrder) ? card.layerOrder : 1;
 
   return (
-    <motion.div
+    <Motion.div
       className="milestone-card"
       style={{ "--card-bg": card.color, zIndex }}
       initial={{ y: startY, opacity: 0, x: offsetX }}
@@ -842,11 +855,11 @@ const MilestoneCard = ({ card }) => {
         </span>
       </div>
       <div className="milestone-label">{card.label}</div>
-    </motion.div>
+    </Motion.div>
   );
-};
+});
 
-const MilestoneStack = ({ cards }) => (
+const MilestoneStack = React.memo(({ cards }) => (
   <div className="milestone-stack">
     <AnimatePresence>
       {cards.map((card) => (
@@ -854,7 +867,7 @@ const MilestoneStack = ({ cards }) => (
       ))}
     </AnimatePresence>
   </div>
-);
+));
 
 const isMilestoneDue = (milestone, amount, elapsedSeconds) => {
   if (Number.isFinite(milestone.triggerAtSeconds)) {
@@ -878,6 +891,20 @@ const App = () => {
   const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
   const nextMilestoneRef = useRef(0);
   const cardInstanceRef = useRef(0);
+  const cardCleanupTimersRef = useRef(new Map());
+
+  const removeCard = useCallback((instanceKey) => {
+    const cleanupTimer = cardCleanupTimersRef.current.get(instanceKey);
+    if (cleanupTimer) {
+      clearTimeout(cleanupTimer);
+      cardCleanupTimersRef.current.delete(instanceKey);
+    }
+
+    setVisibleCards((prev) => {
+      const next = prev.filter((card) => card.instanceKey !== instanceKey);
+      return next.length === prev.length ? prev : next;
+    });
+  }, []);
   
   const getCardOffset = () => {
     if (typeof window === "undefined") {
@@ -933,6 +960,8 @@ const App = () => {
     let rafId;
     let isActive = true;
     const start = performance.now();
+    let lastCounterCommitAt = -Infinity;
+    const cleanupTimers = cardCleanupTimersRef.current;
 
     nextMilestoneRef.current = 0;
     cardInstanceRef.current = 0;
@@ -944,7 +973,10 @@ const App = () => {
       const elapsedSeconds = elapsedMs / 1000;
       const amount = Math.floor(elapsedSeconds * RATE);
 
-      setDollars(amount);
+      if (now - lastCounterCommitAt >= COUNTER_UPDATE_INTERVAL_MS) {
+        setDollars(amount);
+        lastCounterCommitAt = now;
+      }
 
       let nextIndex = nextMilestoneRef.current;
       const dueCards = [];
@@ -965,27 +997,27 @@ const App = () => {
           const layerOrder = cardInstanceRef.current + 1;
           cardInstanceRef.current = layerOrder;
           const { travelY, duration } = getCardFlight(index, 0);
+          const instanceKey = `${nextCard.eventId ?? nextCard.id}:${layerOrder}`;
+          const removeAtMs = Math.max(0, Math.round(duration * 1000));
+          const cleanupTimer = setTimeout(() => {
+            removeCard(instanceKey);
+          }, removeAtMs);
+          cleanupTimers.set(instanceKey, cleanupTimer);
 
           return {
             ...nextCard,
-            instanceKey: `${nextCard.eventId ?? nextCard.id}:${layerOrder}`,
+            instanceKey,
             layerOrder,
             offsetX: getCardOffset(),
             color: getCardColor(),
             startY: 0,
             travelY,
             duration,
-            bornAt: now,
           };
         });
 
         setVisibleCards((prev) => [...prev, ...nextCards]);
       }
-
-      setVisibleCards((prev) => {
-        const next = prev.filter((card) => now - card.bornAt < card.duration * 1000);
-        return next.length === prev.length ? prev : next;
-      });
 
       if (isActive) {
         rafId = requestAnimationFrame(tick);
@@ -997,8 +1029,10 @@ const App = () => {
     return () => {
       isActive = false;
       cancelAnimationFrame(rafId);
+      cleanupTimers.forEach((timer) => clearTimeout(timer));
+      cleanupTimers.clear();
     };
-  }, []);
+  }, [removeCard]);
 
   useEffect(() => {
     if (!isMethodologyOpen) return undefined;
@@ -1029,7 +1063,7 @@ const App = () => {
       <div className="methodology-anchor">
         <AnimatePresence>
           {isMethodologyOpen && (
-            <motion.div
+            <Motion.div
               className="methodology-panel"
               initial={{ opacity: 0, y: 8, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1045,7 +1079,7 @@ const App = () => {
                 x
               </button>
               <MethodologyMemo />
-            </motion.div>
+            </Motion.div>
           )}
         </AnimatePresence>
         <button
