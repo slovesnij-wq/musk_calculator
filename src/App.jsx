@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
@@ -17,6 +17,7 @@ const CARD_MIN_DURATION_FACTOR = 1.7;
 const CARD_GAP_HOLD_SECONDS = 0.6;
 const COUNTER_UPDATE_FPS = 30;
 const COUNTER_UPDATE_FPS_MOBILE = 20;
+const DIGIT_WHEEL_DURATION_MS = 140;
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -159,12 +160,23 @@ body {
   position: relative;
 }
 
-.digit-svg {
+.digit-wheel-tape {
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.digit-wheel-slot {
+  width: 100%;
+  height: var(--digit-h);
+  flex: 0 0 var(--digit-h);
+}
+
+.digit-svg-static {
   width: 100%;
   height: 100%;
   display: block;
-  position: absolute;
-  inset: 0;
 }
 
 .symbol-svg {
@@ -533,31 +545,170 @@ body {
 }
 `;
 
-const SvgDigit = ({ digit, enterDuration, exitDuration, enterFrom }) => {
+const DIGIT_SEQUENCE = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+const DIGIT_WHEEL_SEQUENCE = [...DIGIT_SEQUENCE, "0"];
+
+const normalizeDigitChar = (digit) => {
+  const parsed = Number.parseInt(String(digit), 10);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(9, Math.max(0, parsed));
+};
+
+const usePrefersReducedMotion = () => {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const handleChange = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
+    };
+
+    handleChange();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+};
+
+const SvgDigitStatic = React.memo(({ digit }) => {
   const data = DIGIT_SVGS[digit] || DIGIT_SVGS["0"];
-  const resolvedEnter = enterDuration ?? 0.22;
-  const resolvedExit = exitDuration ?? resolvedEnter;
-  const resolvedEnterFrom = enterFrom ?? 0;
+
+  return (
+    <svg className="digit-svg-static" viewBox={data.viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <g dangerouslySetInnerHTML={{ __html: data.inner }} />
+    </svg>
+  );
+});
+
+const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMotion }) => {
+  const normalizedTarget = normalizeDigitChar(targetDigit);
+  const [currentIndex, setCurrentIndex] = useState(normalizedTarget);
+  const [isTransitionEnabled, dispatchTransitionEnabled] = useReducer((_, nextValue) => nextValue, !prefersReducedMotion);
+  const currentIndexRef = useRef(normalizedTarget);
+  const wrapPendingRef = useRef(false);
+  const queuedTargetRef = useRef(null);
+  const rafRef = useRef(null);
+
+  const setIndex = useCallback((nextIndex) => {
+    currentIndexRef.current = nextIndex;
+    setCurrentIndex(nextIndex);
+  }, []);
+
+  useEffect(() => () => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+    }
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!prefersReducedMotion) return;
+
+    wrapPendingRef.current = false;
+    queuedTargetRef.current = null;
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    dispatchTransitionEnabled(false);
+    setIndex(normalizedTarget);
+  }, [normalizedTarget, prefersReducedMotion, setIndex]);
+
+  useEffect(() => {
+    if (prefersReducedMotion) return;
+
+    const visibleDigit = currentIndexRef.current === 10 ? 0 : currentIndexRef.current;
+
+    if (wrapPendingRef.current) {
+      queuedTargetRef.current = normalizedTarget;
+      return;
+    }
+
+    if (normalizedTarget === visibleDigit) return;
+
+    if (visibleDigit === 9 && normalizedTarget === 0) {
+      dispatchTransitionEnabled(true);
+      wrapPendingRef.current = true;
+      queuedTargetRef.current = null;
+      setIndex(10);
+      return;
+    }
+
+    if (normalizedTarget < visibleDigit) {
+      dispatchTransitionEnabled(false);
+      setIndex(normalizedTarget);
+
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+      }
+      rafRef.current = requestAnimationFrame(() => {
+        dispatchTransitionEnabled(true);
+        rafRef.current = null;
+      });
+      return;
+    }
+
+    dispatchTransitionEnabled(true);
+    setIndex(normalizedTarget);
+  }, [normalizedTarget, prefersReducedMotion, setIndex]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleTransitionEnd = useCallback((event) => {
+    if (event.propertyName !== "transform" || !wrapPendingRef.current) return;
+
+    wrapPendingRef.current = false;
+    dispatchTransitionEnabled(false);
+    setIndex(0);
+
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+    }
+    rafRef.current = requestAnimationFrame(() => {
+      const queuedTarget = normalizeDigitChar(queuedTargetRef.current ?? 0);
+      queuedTargetRef.current = null;
+
+      dispatchTransitionEnabled(true);
+      if (queuedTarget > 0) {
+        setIndex(queuedTarget);
+      }
+
+      rafRef.current = null;
+    });
+  }, [setIndex]);
+
+  const transitionMs = placeFromRight <= 2 ? 120 : DIGIT_WHEEL_DURATION_MS;
 
   return (
     <div className="digit-cell" aria-hidden="true">
-      <AnimatePresence initial={false} mode="sync">
-        <Motion.svg
-          key={digit}
-          className="digit-svg"
-          viewBox={data.viewBox}
-          preserveAspectRatio="xMidYMid meet"
-          initial={{ opacity: resolvedEnterFrom }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: resolvedExit, ease: "linear" } }}
-          transition={{ duration: resolvedEnter, ease: "easeOut" }}
-        >
-          <g dangerouslySetInnerHTML={{ __html: data.inner }} />
-        </Motion.svg>
-      </AnimatePresence>
+      <div
+        className="digit-wheel-tape"
+        style={{
+          transform: `translate3d(0, calc(${currentIndex} * -1 * var(--digit-h)), 0)`,
+          transition: !prefersReducedMotion && isTransitionEnabled ? `transform ${transitionMs}ms linear` : "none",
+        }}
+        onTransitionEnd={handleTransitionEnd}
+      >
+        {DIGIT_WHEEL_SEQUENCE.map((digit, sequenceIndex) => (
+          <div className="digit-wheel-slot" key={`digit-slot-${placeFromRight}-${sequenceIndex}`}>
+            <SvgDigitStatic digit={digit} />
+          </div>
+        ))}
+      </div>
     </div>
   );
-};
+});
 
 const SvgSymbol = ({ char, type }) => {
   if (char === "$") {
@@ -582,26 +733,6 @@ const SvgSymbol = ({ char, type }) => {
       </text>
     </svg>
   );
-};
-
-const getFadeProfile = (placeFromRight) => {
-  const fast = placeFromRight <= 2;
-
-  const enterMin = 0.05;
-  const enterStep = 0.03;
-  const enterMax = 0.22;
-  const enterBase = Math.min(enterMax, enterMin + placeFromRight * enterStep);
-
-  const exitMin = 0.01;
-  const exitStep = 0.02;
-  const exitMax = 0.18;
-  const exitBase = Math.min(exitMax, exitMin + placeFromRight * exitStep);
-
-  const enter = fast ? 0.02 : enterBase;
-  const exit = fast ? Math.min(exitBase, 0.02) : exitBase;
-  const enterFrom = fast ? 1 : 0;
-
-  return { enter, exit, enterFrom };
 };
 
 const CARD_SECONDS_FORMATTER = new Intl.NumberFormat("ru-RU", {
@@ -803,6 +934,7 @@ const MethodologyMemo = () => (
 );
 
 const Counter = ({ value }) => {
+  const prefersReducedMotion = usePrefersReducedMotion();
   const formatted = COUNTER_FORMATTER.format(value).replace(/\u00A0/g, " ");
   const display = `$${formatted}`;
   const chars = display.split("");
@@ -820,14 +952,12 @@ const Counter = ({ value }) => {
         if (/\d/.test(char)) {
           const currentDigitIndex = digitOrderByCharIndex.get(index) ?? 0;
           const placeFromRight = digitCount - 1 - currentDigitIndex;
-          const { enter, exit, enterFrom } = getFadeProfile(placeFromRight);
           return (
-            <SvgDigit
-              key={`digit-${index}`}
-              digit={char}
-              enterDuration={enter}
-              exitDuration={exit}
-              enterFrom={enterFrom}
+            <DigitWheel
+              key={`digit-${placeFromRight}`}
+              targetDigit={char}
+              placeFromRight={placeFromRight}
+              prefersReducedMotion={prefersReducedMotion}
             />
           );
         }
