@@ -18,8 +18,9 @@ const CARD_GAP_HOLD_SECONDS = 0.6;
 const COUNTER_UPDATE_FPS = 30;
 const COUNTER_UPDATE_FPS_MOBILE = 20;
 const DIGIT_WHEEL_DURATION_MS = 104;
-const DIGIT_WHEEL_FAST_DURATION_MS = 92;
+const DIGIT_WHEEL_FAST_DURATION_MS = 48;
 const DIGIT_WHEEL_EASING = "cubic-bezier(0.22, 0.61, 0.36, 1)";
+const DIGIT_WHEEL_FAST_EASING = "linear";
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -595,23 +596,100 @@ const SvgDigitStatic = React.memo(({ digit }) => {
 
 const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMotion }) => {
   const normalizedTarget = normalizeDigitChar(targetDigit);
+  const isFastPlace = placeFromRight <= 2;
   const [currentIndex, setCurrentIndex] = useState(normalizedTarget);
   const [isTransitionEnabled, dispatchTransitionEnabled] = useReducer((_, nextValue) => nextValue, !prefersReducedMotion);
   const currentIndexRef = useRef(normalizedTarget);
   const wrapPendingRef = useRef(false);
   const queuedTargetRef = useRef(null);
   const rafRef = useRef(null);
+  const wrapTimeoutRef = useRef(null);
+  const completeWrapRef = useRef(() => {});
+  const transitionMs = isFastPlace ? DIGIT_WHEEL_FAST_DURATION_MS : DIGIT_WHEEL_DURATION_MS;
+  const transitionEasing = isFastPlace ? DIGIT_WHEEL_FAST_EASING : DIGIT_WHEEL_EASING;
+
+  const clearWrapTimeout = useCallback(() => {
+    if (wrapTimeoutRef.current !== null) {
+      clearTimeout(wrapTimeoutRef.current);
+      wrapTimeoutRef.current = null;
+    }
+  }, []);
 
   const setIndex = useCallback((nextIndex) => {
     currentIndexRef.current = nextIndex;
     setCurrentIndex(nextIndex);
   }, []);
 
+  const scheduleWrapTimeout = useCallback(() => {
+    clearWrapTimeout();
+    wrapTimeoutRef.current = setTimeout(() => {
+      completeWrapRef.current();
+    }, transitionMs + (isFastPlace ? 120 : 160));
+  }, [clearWrapTimeout, isFastPlace, transitionMs]);
+
+  const moveToTarget = useCallback((nextTarget) => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    const normalizedNextTarget = normalizeDigitChar(nextTarget);
+    const visibleDigit = currentIndexRef.current % 10;
+    const forwardDelta = (normalizedNextTarget - visibleDigit + 10) % 10;
+    if (forwardDelta === 0) return false;
+
+    const baseIndex = currentIndexRef.current;
+    const willOverflowTape = baseIndex + forwardDelta >= DIGIT_WHEEL_SEQUENCE.length;
+
+    if (willOverflowTape) {
+      wrapPendingRef.current = true;
+      dispatchTransitionEnabled(false);
+      setIndex(baseIndex - 10);
+      rafRef.current = requestAnimationFrame(() => {
+        dispatchTransitionEnabled(true);
+
+        const rebasedIndex = currentIndexRef.current;
+        const nextIndex = rebasedIndex + forwardDelta;
+        wrapPendingRef.current = true;
+        setIndex(nextIndex);
+        scheduleWrapTimeout();
+
+        rafRef.current = null;
+      });
+      return true;
+    }
+
+    dispatchTransitionEnabled(true);
+    const nextIndex = baseIndex + forwardDelta;
+    wrapPendingRef.current = true;
+    setIndex(nextIndex);
+    scheduleWrapTimeout();
+    return true;
+  }, [scheduleWrapTimeout, setIndex]);
+
+  const completeWrap = useCallback(() => {
+    if (!wrapPendingRef.current) return;
+
+    wrapPendingRef.current = false;
+    clearWrapTimeout();
+
+    const queuedTarget = queuedTargetRef.current;
+    queuedTargetRef.current = null;
+    if (queuedTarget !== null && queuedTarget !== undefined) {
+      moveToTarget(queuedTarget);
+    }
+  }, [clearWrapTimeout, moveToTarget]);
+
+  useEffect(() => {
+    completeWrapRef.current = completeWrap;
+  }, [completeWrap]);
+
   useEffect(() => () => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
     }
-  }, []);
+    clearWrapTimeout();
+  }, [clearWrapTimeout]);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -619,6 +697,7 @@ const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMoti
 
     wrapPendingRef.current = false;
     queuedTargetRef.current = null;
+    clearWrapTimeout();
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -631,57 +710,24 @@ const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMoti
   useEffect(() => {
     if (prefersReducedMotion) return;
 
-    const visibleDigit = currentIndexRef.current % 10;
-
     if (wrapPendingRef.current) {
       queuedTargetRef.current = normalizedTarget;
       return;
     }
 
-    const forwardDelta = (normalizedTarget - visibleDigit + 10) % 10;
-    if (forwardDelta === 0) return;
-
-    dispatchTransitionEnabled(true);
     queuedTargetRef.current = null;
-    const nextIndex = currentIndexRef.current + forwardDelta;
-    wrapPendingRef.current = nextIndex >= 10;
-    setIndex(nextIndex);
-  }, [normalizedTarget, prefersReducedMotion, setIndex]);
+    const didMove = moveToTarget(normalizedTarget);
+    if (!didMove) {
+      clearWrapTimeout();
+    }
+  }, [clearWrapTimeout, moveToTarget, normalizedTarget, prefersReducedMotion]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleTransitionEnd = useCallback((event) => {
     if (event.propertyName !== "transform") return;
     if (!wrapPendingRef.current) return;
-
-    wrapPendingRef.current = false;
-    dispatchTransitionEnabled(false);
-    setIndex(currentIndexRef.current % 10);
-
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-    }
-    rafRef.current = requestAnimationFrame(() => {
-      dispatchTransitionEnabled(true);
-
-      const queuedTarget = queuedTargetRef.current;
-      queuedTargetRef.current = null;
-      if (queuedTarget !== null && queuedTarget !== undefined) {
-        const normalizedQueuedTarget = normalizeDigitChar(queuedTarget);
-        const visibleDigit = currentIndexRef.current % 10;
-        const forwardDelta = (normalizedQueuedTarget - visibleDigit + 10) % 10;
-
-        if (forwardDelta > 0) {
-          const nextIndex = currentIndexRef.current + forwardDelta;
-          wrapPendingRef.current = nextIndex >= 10;
-          setIndex(nextIndex);
-        }
-      }
-
-      rafRef.current = null;
-    });
-  }, [setIndex]);
-
-  const transitionMs = placeFromRight <= 2 ? DIGIT_WHEEL_FAST_DURATION_MS : DIGIT_WHEEL_DURATION_MS;
+    completeWrap();
+  }, [completeWrap]);
 
   return (
     <div className="digit-cell" aria-hidden="true">
@@ -690,7 +736,7 @@ const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMoti
         style={{
           transform: `translate3d(0, calc(${currentIndex} * -1 * var(--digit-h)), 0)`,
           transition: !prefersReducedMotion && isTransitionEnabled
-            ? `transform ${transitionMs}ms ${DIGIT_WHEEL_EASING}`
+            ? `transform ${transitionMs}ms ${transitionEasing}`
             : "none",
         }}
         onTransitionEnd={handleTransitionEnd}
