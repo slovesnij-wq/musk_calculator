@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { MILESTONES, RATE_USD_PER_SECOND } from "./content/milestones.js";
 import dollarIcon from "./assets/dollar.svg";
@@ -16,7 +16,7 @@ const CARD_RISE_BUFFER = 80;
 const CARD_MIN_DURATION_FACTOR = 1.7;
 const CARD_GAP_HOLD_SECONDS = 0.6;
 const COUNTER_UPDATE_FPS = 30;
-const COUNTER_UPDATE_INTERVAL_MS = 1000 / COUNTER_UPDATE_FPS;
+const COUNTER_UPDATE_FPS_MOBILE = 20;
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -231,8 +231,30 @@ body {
   justify-content: center;
   gap: 6px;
   will-change: transform, opacity;
-  transform: translateZ(0);
+  transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+}
+
+.milestone-card-flight {
+  animation-name: milestone-card-float;
+  animation-duration: var(--flight-duration, 4s);
+  animation-timing-function: linear;
+  animation-delay: var(--flight-delay, 0s);
+  animation-fill-mode: both;
+}
+
+@keyframes milestone-card-float {
+  0% {
+    transform: translate3d(var(--card-offset-x, 0px), var(--card-start-y, 0px), 0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--card-offset-x, 0px), calc(-1 * var(--card-travel-y, 400px)), 0);
+    opacity: 1;
+  }
 }
 
 .milestone-top {
@@ -824,6 +846,30 @@ const Counter = ({ value }) => {
   );
 };
 
+const CounterTicker = React.memo(() => {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    const start = performance.now();
+    const fps =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 640px), (pointer: coarse)").matches
+        ? COUNTER_UPDATE_FPS_MOBILE
+        : COUNTER_UPDATE_FPS;
+    const intervalMs = 1000 / fps;
+
+    const timer = setInterval(() => {
+      const elapsedSeconds = (performance.now() - start) / 1000;
+      const nextValue = Math.floor(elapsedSeconds * RATE);
+      setValue(nextValue);
+    }, intervalMs);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return <Counter value={value} />;
+});
+
 const MilestoneCard = React.memo(({ card }) => {
   const offsetX = card.offsetX ?? 0;
   const startY = card.startY ?? 0;
@@ -836,15 +882,16 @@ const MilestoneCard = React.memo(({ card }) => {
   const zIndex = Number.isFinite(card.layerOrder) ? card.layerOrder : 1;
 
   return (
-    <Motion.div
-      className="milestone-card"
-      style={{ "--card-bg": card.color, zIndex }}
-      initial={{ y: startY, opacity: 0, x: offsetX }}
-      animate={{ y: -travelY, opacity: 1, x: offsetX }}
-      exit={{ opacity: 0, transition: { duration: 0.2 } }}
-      transition={{
-        y: { duration, ease: "linear" },
-        opacity: { duration: 0.4, ease: "easeOut" },
+    <div
+      className="milestone-card milestone-card-flight"
+      style={{
+        "--card-bg": card.color,
+        "--card-offset-x": `${offsetX}px`,
+        "--card-start-y": `${startY}px`,
+        "--card-travel-y": `${travelY}px`,
+        "--flight-duration": `${duration}s`,
+        "--flight-delay": `${card.delaySeconds ?? 0}s`,
+        zIndex,
       }}
     >
       <div className="milestone-top">
@@ -855,29 +902,17 @@ const MilestoneCard = React.memo(({ card }) => {
         </span>
       </div>
       <div className="milestone-label">{card.label}</div>
-    </Motion.div>
+    </div>
   );
 });
 
 const MilestoneStack = React.memo(({ cards }) => (
   <div className="milestone-stack">
-    <AnimatePresence>
-      {cards.map((card) => (
-        <MilestoneCard key={card.instanceKey} card={card} />
-      ))}
-    </AnimatePresence>
+    {cards.map((card) => (
+      <MilestoneCard key={card.instanceKey} card={card} />
+    ))}
   </div>
 ));
-
-const isMilestoneDue = (milestone, amount, elapsedSeconds) => {
-  if (Number.isFinite(milestone.triggerAtSeconds)) {
-    return elapsedSeconds >= milestone.triggerAtSeconds;
-  }
-  if (Number.isFinite(milestone.usdValue)) {
-    return amount >= milestone.usdValue;
-  }
-  return Number.isFinite(milestone.seconds) && elapsedSeconds >= milestone.seconds;
-};
 
 const getMilestoneTriggerSeconds = (milestone) => {
   if (Number.isFinite(milestone?.triggerAtSeconds)) return milestone.triggerAtSeconds;
@@ -885,154 +920,82 @@ const getMilestoneTriggerSeconds = (milestone) => {
   return null;
 };
 
-const App = () => {
-  const [dollars, setDollars] = useState(0);
-  const [visibleCards, setVisibleCards] = useState([]);
-  const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
-  const nextMilestoneRef = useRef(0);
-  const cardInstanceRef = useRef(0);
-  const cardCleanupTimersRef = useRef(new Map());
+const getCardOffset = () => {
+  if (typeof window === "undefined") {
+    return 0;
+  }
 
-  const removeCard = useCallback((instanceKey) => {
-    const cleanupTimer = cardCleanupTimersRef.current.get(instanceKey);
-    if (cleanupTimer) {
-      clearTimeout(cleanupTimer);
-      cardCleanupTimersRef.current.delete(instanceKey);
-    }
+  const viewportWidth = window.innerWidth || CARD_WIDTH;
+  const isNarrow = viewportWidth <= 640;
+  const cardWidth = isNarrow ? viewportWidth * 0.9 : CARD_WIDTH;
+  const safeMargin = Math.max(0, (viewportWidth - cardWidth) / 2);
+  const maxOffset = Math.max(0, Math.min(140, safeMargin * 0.75));
+  const jitter = (Math.random() * 2 - 1) * maxOffset;
 
-    setVisibleCards((prev) => {
-      const next = prev.filter((card) => card.instanceKey !== instanceKey);
-      return next.length === prev.length ? prev : next;
-    });
-  }, []);
-  
-  const getCardOffset = () => {
-    if (typeof window === "undefined") {
-      return 0;
-    }
+  return Math.round(jitter);
+};
 
-    const viewportWidth = window.innerWidth || CARD_WIDTH;
-    const isNarrow = viewportWidth <= 640;
-    const cardWidth = isNarrow ? viewportWidth * 0.9 : CARD_WIDTH;
-    const safeMargin = Math.max(0, (viewportWidth - cardWidth) / 2);
-    const maxOffset = Math.max(0, Math.min(140, safeMargin * 0.75));
-    const jitter = (Math.random() * 2 - 1) * maxOffset;
+const getCardColor = () => {
+  const index = Math.floor(Math.random() * CARD_COLORS.length);
+  return CARD_COLORS[index] || CARD_COLORS[0];
+};
 
-    return Math.round(jitter);
-  };
-
-  const getCardColor = () => {
-    const index = Math.floor(Math.random() * CARD_COLORS.length);
-    return CARD_COLORS[index] || CARD_COLORS[0];
-  };
-
-  const getCardFlight = (milestoneIndex, startY = 0) => {
-    if (typeof window === "undefined") {
-      const travelY = CARD_HEIGHT * 4;
-      const baseDuration = (travelY + startY) / CARD_RISE_SPEED;
-      return { travelY, duration: baseDuration * CARD_MIN_DURATION_FACTOR };
-    }
-
-    const travelY = window.innerHeight + CARD_HEIGHT + CARD_RISE_BUFFER;
+const getCardFlight = (milestoneIndex, startY = 0) => {
+  if (typeof window === "undefined") {
+    const travelY = CARD_HEIGHT * 4;
     const baseDuration = (travelY + startY) / CARD_RISE_SPEED;
-    const minDuration = baseDuration * CARD_MIN_DURATION_FACTOR;
+    return { travelY, duration: baseDuration * CARD_MIN_DURATION_FACTOR };
+  }
 
-    const current = MILESTONES[milestoneIndex];
-    const next = MILESTONES[milestoneIndex + 1];
-    const currentTrigger = getMilestoneTriggerSeconds(current);
-    const nextTrigger = getMilestoneTriggerSeconds(next);
-    const gapDuration =
-      Number.isFinite(currentTrigger) && Number.isFinite(nextTrigger)
-        ? Math.max(0, nextTrigger - currentTrigger) + CARD_GAP_HOLD_SECONDS
+  const travelY = window.innerHeight + CARD_HEIGHT + CARD_RISE_BUFFER;
+  const baseDuration = (travelY + startY) / CARD_RISE_SPEED;
+  const minDuration = baseDuration * CARD_MIN_DURATION_FACTOR;
+
+  const current = MILESTONES[milestoneIndex];
+  const next = MILESTONES[milestoneIndex + 1];
+  const currentTrigger = getMilestoneTriggerSeconds(current);
+  const nextTrigger = getMilestoneTriggerSeconds(next);
+  const gapDuration =
+    Number.isFinite(currentTrigger) && Number.isFinite(nextTrigger)
+      ? Math.max(0, nextTrigger - currentTrigger) + CARD_GAP_HOLD_SECONDS
+      : null;
+
+  let duration = minDuration;
+  if (Number.isFinite(gapDuration)) {
+    duration = Math.max(minDuration, gapDuration);
+  } else if (!next) {
+    duration = minDuration * 1.2;
+  }
+
+  return { travelY, duration };
+};
+
+const App = () => {
+  const [isMethodologyOpen, setIsMethodologyOpen] = useState(false);
+  const preparedCards = useMemo(() => {
+    const scheduledMilestones = MILESTONES.map((milestone, index) => {
+      const delaySeconds = getMilestoneTriggerSeconds(milestone);
+      return Number.isFinite(delaySeconds)
+        ? { milestone, index, delaySeconds }
         : null;
+    }).filter(Boolean);
 
-    let duration = minDuration;
-    if (Number.isFinite(gapDuration)) {
-      duration = Math.max(minDuration, gapDuration);
-    } else if (!next) {
-      duration = minDuration * 1.2;
-    }
-
-    return { travelY, duration };
-  };
-
-  useEffect(() => {
-    let rafId;
-    let isActive = true;
-    const start = performance.now();
-    let lastCounterCommitAt = -Infinity;
-    const cleanupTimers = cardCleanupTimersRef.current;
-
-    nextMilestoneRef.current = 0;
-    cardInstanceRef.current = 0;
-
-    const tick = (now) => {
-      if (!isActive) return;
-
-      const elapsedMs = now - start;
-      const elapsedSeconds = elapsedMs / 1000;
-      const amount = Math.floor(elapsedSeconds * RATE);
-
-      if (now - lastCounterCommitAt >= COUNTER_UPDATE_INTERVAL_MS) {
-        setDollars(amount);
-        lastCounterCommitAt = now;
-      }
-
-      let nextIndex = nextMilestoneRef.current;
-      const dueCards = [];
-      while (
-        nextIndex < MILESTONES.length &&
-        isMilestoneDue(MILESTONES[nextIndex], amount, elapsedSeconds)
-      ) {
-        dueCards.push({ milestone: MILESTONES[nextIndex], index: nextIndex });
-        nextIndex += 1;
-      }
-
-      if (nextIndex !== nextMilestoneRef.current) {
-        nextMilestoneRef.current = nextIndex;
-      }
-
-      if (dueCards.length > 0) {
-        const nextCards = dueCards.map(({ milestone: nextCard, index }) => {
-          const layerOrder = cardInstanceRef.current + 1;
-          cardInstanceRef.current = layerOrder;
-          const { travelY, duration } = getCardFlight(index, 0);
-          const instanceKey = `${nextCard.eventId ?? nextCard.id}:${layerOrder}`;
-          const removeAtMs = Math.max(0, Math.round(duration * 1000));
-          const cleanupTimer = setTimeout(() => {
-            removeCard(instanceKey);
-          }, removeAtMs);
-          cleanupTimers.set(instanceKey, cleanupTimer);
-
-          return {
-            ...nextCard,
-            instanceKey,
-            layerOrder,
-            offsetX: getCardOffset(),
-            color: getCardColor(),
-            startY: 0,
-            travelY,
-            duration,
-          };
-        });
-
-        setVisibleCards((prev) => [...prev, ...nextCards]);
-      }
-
-      if (isActive) {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-
-    rafId = requestAnimationFrame(tick);
-
-    return () => {
-      isActive = false;
-      cancelAnimationFrame(rafId);
-      cleanupTimers.forEach((timer) => clearTimeout(timer));
-      cleanupTimers.clear();
-    };
-  }, [removeCard]);
+    return scheduledMilestones.map(({ milestone, index, delaySeconds }, orderIndex) => {
+      const { travelY, duration } = getCardFlight(index, 0);
+      const layerOrder = orderIndex + 1;
+      return {
+        ...milestone,
+        instanceKey: `${milestone.eventId ?? milestone.id}:${layerOrder}`,
+        layerOrder,
+        offsetX: getCardOffset(),
+        color: getCardColor(),
+        startY: 0,
+        travelY,
+        duration,
+        delaySeconds,
+      };
+    }).filter(Boolean);
+  }, []);
 
   useEffect(() => {
     if (!isMethodologyOpen) return undefined;
@@ -1053,12 +1016,12 @@ const App = () => {
       <div className="hero-block">
         <div className="top-text">Илон Маск заработал:</div>
         <div className="counter-wrap">
-          <Counter value={dollars} />
+          <CounterTicker />
         </div>
         <div className="bottom-text">...с того момента, как вы открыли эту страницу</div>
       </div>
       <div className="milestones">
-        <MilestoneStack cards={visibleCards} />
+        <MilestoneStack cards={preparedCards} />
       </div>
       <div className="methodology-anchor">
         <AnimatePresence>
