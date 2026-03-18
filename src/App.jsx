@@ -17,7 +17,9 @@ const CARD_MIN_DURATION_FACTOR = 1.7;
 const CARD_GAP_HOLD_SECONDS = 0.6;
 const COUNTER_UPDATE_FPS = 30;
 const COUNTER_UPDATE_FPS_MOBILE = 20;
-const DIGIT_WHEEL_DURATION_MS = 140;
+const DIGIT_WHEEL_DURATION_MS = 104;
+const DIGIT_WHEEL_FAST_DURATION_MS = 92;
+const DIGIT_WHEEL_EASING = "cubic-bezier(0.22, 0.61, 0.36, 1)";
 const CARD_COLORS = [
   "#FFDD31",
   "#FF9DD8",
@@ -546,7 +548,7 @@ body {
 `;
 
 const DIGIT_SEQUENCE = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
-const DIGIT_WHEEL_SEQUENCE = [...DIGIT_SEQUENCE, "0"];
+const DIGIT_WHEEL_SEQUENCE = [...DIGIT_SEQUENCE, ...DIGIT_SEQUENCE];
 
 const normalizeDigitChar = (digit) => {
   const parsed = Number.parseInt(String(digit), 10);
@@ -629,66 +631,57 @@ const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMoti
   useEffect(() => {
     if (prefersReducedMotion) return;
 
-    const visibleDigit = currentIndexRef.current === 10 ? 0 : currentIndexRef.current;
+    const visibleDigit = currentIndexRef.current % 10;
 
     if (wrapPendingRef.current) {
       queuedTargetRef.current = normalizedTarget;
       return;
     }
 
-    if (normalizedTarget === visibleDigit) return;
-
-    if (visibleDigit === 9 && normalizedTarget === 0) {
-      dispatchTransitionEnabled(true);
-      wrapPendingRef.current = true;
-      queuedTargetRef.current = null;
-      setIndex(10);
-      return;
-    }
-
-    if (normalizedTarget < visibleDigit) {
-      dispatchTransitionEnabled(false);
-      setIndex(normalizedTarget);
-
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-      }
-      rafRef.current = requestAnimationFrame(() => {
-        dispatchTransitionEnabled(true);
-        rafRef.current = null;
-      });
-      return;
-    }
+    const forwardDelta = (normalizedTarget - visibleDigit + 10) % 10;
+    if (forwardDelta === 0) return;
 
     dispatchTransitionEnabled(true);
-    setIndex(normalizedTarget);
+    queuedTargetRef.current = null;
+    const nextIndex = currentIndexRef.current + forwardDelta;
+    wrapPendingRef.current = nextIndex >= 10;
+    setIndex(nextIndex);
   }, [normalizedTarget, prefersReducedMotion, setIndex]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleTransitionEnd = useCallback((event) => {
-    if (event.propertyName !== "transform" || !wrapPendingRef.current) return;
+    if (event.propertyName !== "transform") return;
+    if (!wrapPendingRef.current) return;
 
     wrapPendingRef.current = false;
     dispatchTransitionEnabled(false);
-    setIndex(0);
+    setIndex(currentIndexRef.current % 10);
 
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current);
     }
     rafRef.current = requestAnimationFrame(() => {
-      const queuedTarget = normalizeDigitChar(queuedTargetRef.current ?? 0);
-      queuedTargetRef.current = null;
-
       dispatchTransitionEnabled(true);
-      if (queuedTarget > 0) {
-        setIndex(queuedTarget);
+
+      const queuedTarget = queuedTargetRef.current;
+      queuedTargetRef.current = null;
+      if (queuedTarget !== null && queuedTarget !== undefined) {
+        const normalizedQueuedTarget = normalizeDigitChar(queuedTarget);
+        const visibleDigit = currentIndexRef.current % 10;
+        const forwardDelta = (normalizedQueuedTarget - visibleDigit + 10) % 10;
+
+        if (forwardDelta > 0) {
+          const nextIndex = currentIndexRef.current + forwardDelta;
+          wrapPendingRef.current = nextIndex >= 10;
+          setIndex(nextIndex);
+        }
       }
 
       rafRef.current = null;
     });
   }, [setIndex]);
 
-  const transitionMs = placeFromRight <= 2 ? 120 : DIGIT_WHEEL_DURATION_MS;
+  const transitionMs = placeFromRight <= 2 ? DIGIT_WHEEL_FAST_DURATION_MS : DIGIT_WHEEL_DURATION_MS;
 
   return (
     <div className="digit-cell" aria-hidden="true">
@@ -696,7 +689,9 @@ const DigitWheel = React.memo(({ targetDigit, placeFromRight, prefersReducedMoti
         className="digit-wheel-tape"
         style={{
           transform: `translate3d(0, calc(${currentIndex} * -1 * var(--digit-h)), 0)`,
-          transition: !prefersReducedMotion && isTransitionEnabled ? `transform ${transitionMs}ms linear` : "none",
+          transition: !prefersReducedMotion && isTransitionEnabled
+            ? `transform ${transitionMs}ms ${DIGIT_WHEEL_EASING}`
+            : "none",
         }}
         onTransitionEnd={handleTransitionEnd}
       >
