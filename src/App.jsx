@@ -586,9 +586,10 @@ const usePrefersReducedMotion = () => {
 
 const SvgDigitStatic = React.memo(({ digit }) => {
   const data = DIGIT_SVGS[digit] || DIGIT_SVGS["0"];
+  const preserveAspectRatio = digit === "2" ? "xMidYMin meet" : "xMidYMid meet";
 
   return (
-    <svg className="digit-svg-static" viewBox={data.viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <svg className="digit-svg-static" viewBox={data.viewBox} preserveAspectRatio={preserveAspectRatio} aria-hidden="true">
       <g dangerouslySetInnerHTML={{ __html: data.inner }} />
     </svg>
   );
